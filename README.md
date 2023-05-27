@@ -9,7 +9,7 @@ This is script is based on the code of the TROOPSINCONTACTV10 script by Fargo007
 
 Ensure the DCS mission first runs [MOOSE.lua](https://github.com/FlightControl-Master/MOOSE/releases) file
 
-Then run the MRCS.lua file.
+Then run the  MRCS.lua file. [Latest release available here](https://github.com/ShermanZA/MRCS/releases).
 
 Lastly run another file containing the CAS:NEW() function, containing the following items:
 * CASGroupNames: List of player groups that will access the CAS menus via F10
