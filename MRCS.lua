@@ -22,8 +22,8 @@ CAS = {
   coalitiontxt    = "blue",
   CasGroups = {}, -- #GROUP_SET of heli pilots
   CasUnits = {},   -- Table of helicopter #GROUPs  
-  spawnedFriendlyGroup = nil,
-  spawnedEnemyGroup = nil,
+  spawnedFriendlyGroup = {},
+  spawnedEnemyGroup = {},
   -- Define the list of CAS zones
   CZones = {},
   CZoneSets = {},
@@ -91,8 +91,8 @@ function CAS:New(CASGroupNames, ZoneNames, GGTemplates, BGTemplates)
   self.MenusDone = {}
   self.CasUnits = {}
   self.prefixes = CASGroupNames
-  self.spawnedFriendlyGroup = nil
-  self.spawnedEnemyGroup = nil
+  self.spawnedFriendlyGroup = {}
+  self.spawnedEnemyGroup = {}
   self.CZoneTemplates = ZoneNames
   self.CZones = {}
   self.CZoneSets = SET_ZONE:New():AddZonesByName(self.CZoneTemplates)
@@ -218,7 +218,7 @@ function CAS:New(CASGroupNames, ZoneNames, GGTemplates, BGTemplates)
     end, self)
 	
   local enemyGroup = badGroup:SpawnFromCoordinate(enemySpawnPoint)
-  spawnedEnemyGroup = enemyGroup
+  self.spawnedEnemyGroup[selectedGroup:GetName()] = enemyGroup
   --enemyGroup:OptionROEHoldFire(true)
   
   if self.friendly_return_fire == true then
@@ -376,8 +376,8 @@ function CAS:New(CASGroupNames, ZoneNames, GGTemplates, BGTemplates)
 						end                    
                   end)
                   CharlieMike = true
-					if CasSelf.spawnedFriendlyGroup:IsAlive() then
-						CasSelf.spawnedFriendlyGroup:Destroy(nil, 30)
+					if CasSelf.spawnedFriendlyGroup[selectedGroup:GetName()]:IsAlive() then
+						CasSelf.spawnedFriendlyGroup[selectedGroup:GetName()]:Destroy(nil, 30)
 					end	
 					CasSelf.OnStation[selectedGroup:GetName()] = false
 					CasSelf.MenusDone[detectedUnit:Name()] = false
@@ -434,7 +434,7 @@ function CAS:New(CASGroupNames, ZoneNames, GGTemplates, BGTemplates)
 	else
 		-- Spawn the friendly group at the specified sub-zone
 		local friendlyGroup = self:_spawnGroupAtSubZone(detectedZoneName, detectedGroup, detectedUnit)
-		self.spawnedFriendlyGroup = self.SpawnedFriendly
+		self.spawnedFriendlyGroup[detectedGroup:GetName()] = self.SpawnedFriendly
 		self.OnStation[detectedGroup:GetName()] = true
 		self.MenusDone[detectedUnit:Name()] = false
 		self:_RefreshF10Menus()
@@ -448,11 +448,12 @@ function CAS:New(CASGroupNames, ZoneNames, GGTemplates, BGTemplates)
 	self:T(self.lid .. " _OffStation")
 	MESSAGE:New("Roger, confirm you are off-station.", 15):ToGroup(arg)
 	arg.OnStation = false
-	if self.spawnedFriendlyGroup:IsAlive() then
-		self.spawnedFriendlyGroup:Destroy(nil, 30)
+	if self.spawnedFriendlyGroup[arg:GetName()]:IsAlive() then
+		self.spawnedFriendlyGroup[arg:GetName()]:Destroy(nil, 30)
 	end
-	if spawnedEnemyGroup:IsAlive() then
-		spawnedEnemyGroup:Destroy(nil, 30)
+	--rune spawnedFriendlyGroup and spawnedEnemyGroup into list
+	if self.spawnedEnemyGroup[arg:GetName()]:IsAlive() then
+		self.spawnedEnemyGroup[arg:GetName()]:Destroy(nil, 30)
 	end
 	self.OnStation[arg:GetName()] = false
 	self.MenusDone[reqUnit:GetName()] = false
