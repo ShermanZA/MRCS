@@ -8,7 +8,9 @@ This is script is based on the code of the TROOPSINCONTACTV10 script by Fargo007
 ## 1. **To use MRC**
 
 Ensure the DCS mission first runs [MOOSE.lua](https://github.com/FlightControl-Master/MOOSE/releases) file
+
 Then run the MRCS.lua file.
+
 Lastly run another file containing the CAS:NEW() function, containing the following items:
 * CASGroupNames: List of player groups that will access the CAS menus via F10
 * ZoneNames: List of CAS zones where CAS missions will be spawned in
