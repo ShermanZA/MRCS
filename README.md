@@ -1,6 +1,6 @@
 # MRCS
 
-**M**OOSE-based **R**andomised **C**AS **S**cript, MRCS is a modified version of @Fargo007 's TROOPSINCONTACT script modified to work
+**M**OOSE-based **R**andomised **C**AS **S**cript, MRCS is a modified version of Fargo007 's TROOPSINCONTACT script modified to work
 through MOOSE.
 It allows to quickly setup complex missions using pre-scripted scenarios using the available classes within the MOOSE Framework.
 MOOSE works with the current version of DCS world and earlier versions.
