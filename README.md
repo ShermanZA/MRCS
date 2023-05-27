@@ -5,7 +5,7 @@ through MOOSE.
 
 This is script is based on the code of the TROOPSINCONTACTV10 script by Fargo007.
 
-## 1. **To use MRC**
+## 1. **To use MRCS**
 
 Ensure the DCS mission first runs [MOOSE.lua](https://github.com/FlightControl-Master/MOOSE/releases) file
 
