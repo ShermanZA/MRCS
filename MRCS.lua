@@ -362,10 +362,10 @@ do
     TICBaddieUnit1Heading = sgrp:GetUnit(1):GetHeading()
     retreat_number = math.random(1, 100)
     env.info("TICDEBUG: retreat_number: " .. retreat_number)
-    TICBaddieZone = ZONE_GROUP:New(sgrp:GetName(), sgrp, 250)
+    local TICBaddieZone = ZONE_GROUP:New(sgrp:GetName(), sgrp, 250)
     sgrp:HandleEvent(EVENTS.Hit)
     function sgrp:OnEventHit(EventData)
-      shooterCoalition = EventData.IniCoalition
+      local shooterCoalition = EventData.IniCoalition
       if shooterCoalition == 2 then
         --CasSelf:_RefreshF10Menus()
         local DeadScheduler = SCHEDULER:New(nil, function()
@@ -388,7 +388,7 @@ do
               casgroups:ForEachGroup(function(grp)
                 if grp:IsPartlyOrCompletelyInZone(zone) == true then
                   MESSAGE:New("... From JTAC: good effect on target!", CasSelf.TICMessageShowTime, ""):ToGroup(
-                    EventData.IniGroup, 13)
+                    grp, 13)
                 end
               end)
 
