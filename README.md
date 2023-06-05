@@ -43,3 +43,9 @@ At this point the player menu will change to replace the Check-In option with a 
 The Check-Out function will delete these groups from the map after 2 minutes and confirm that the player group is off station to the player group.
 
 Alternatively, if the enemy group is destroyed, then the ground forces will report the enemy's destruction before being deleted after 2 minutes and automatically reset the group's CAS menu options.
+
+In addition, there are a number of options for target marking as well as repeating the mission briefing for the group. These are:
+ * Deploy New Smoke: Friendlies throw new smoke.
+ * Repeat CAS Brief: Shows the 9 or 5 line again.
+ * Mark /W Tracer: Friendlies fire tracer over the target.
+ * Mark /W Laser: Brings up a sub-menu with a list of laser codes. If the group has line of sight to the enemy they will designate the target.
