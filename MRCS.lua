@@ -27,7 +27,8 @@ do
     -- Define the list of CAS zones
     CZones                = {},
     CZoneSets             = {},
-    smokecolor            = "",
+    smokecolor            = {},
+	smokecolortype        = {},
     TICMessageShowTime    = 120,
     hit_check_interval    = 30,
     friendly_return_fire  = true,
@@ -60,6 +61,8 @@ do
     casMenu,
     checkInmenu,
     checkOutMenu,
+	NewSmokeMenu,
+	RepeatBriefMenu,
     FriendlyTemplates = {},
   }
 
@@ -102,6 +105,7 @@ do
       end
     end)
     self.smokecolor = ""
+	self.smokecolortype = ""
     self.TICMessageShowTime = 120
     self.hit_check_interval = 30
     self.friendly_return_fire = true
@@ -255,78 +259,24 @@ do
 
       --enemyGroup
       local friendlycoor = spawngroup:GetCoordinate()
-      friendlycoorstring = friendlycoor:ToStringMGRS(Settings)
+      local friendlycoorstring = friendlycoor:ToStringMGRS(Settings)
 
       local enemycoor = enemyGroup:GetCoordinate()
-      enemycoorstring = enemycoor:ToStringMGRS(Settings)
+      local enemycoorstring = enemycoor:ToStringMGRS(Settings)
 
-      shouldernum = math.random(1, 2)
-      if shouldernum == 1 then
-        shoulderDir = "LEFT"
-        shoulderSound = "leftshoulder.ogg"
-      else
-        shoulderDir = "RIGHT"
-        shoulderSound = "rightshoulder.ogg"
-      end
-
-      smokecolornum = math.random(1, 5)
-      if smokecolornum == 1 then
-        self.smokecolor = "GREEN"
-        spawngroup:Smoke(SMOKECOLOR.Green, 55, 1)
-        smoke_sound = "greensmoke.ogg"
-      end
-      if smokecolornum == 2 then
-        self.smokecolor = "RED"
-        spawngroup:Smoke(SMOKECOLOR.Red, 55, 1)
-        smoke_sound = "redsmoke.ogg"
-      end
-      if smokecolornum == 3 then
-        self.smokecolor = "WHITE"
-        spawngroup:Smoke(SMOKECOLOR.White, 55, 1)
-        smoke_sound = "whitesmoke.ogg"
-      end
-      if smokecolornum == 4 then
-        self.smokecolor = "ORANGE"
-        spawngroup:Smoke(SMOKECOLOR.Orange, 55, 1)
-        smoke_sound = "orangesmoke.ogg"
-      end
-      if smokecolornum == 5 then
-        self.smokecolor = "BLUE"
-        spawngroup:Smoke(SMOKECOLOR.Blue, 55, 1)
-        smoke_sound = "bluesmoke.ogg"
-      end
+      self:selectSmokeColour()
+      spawngroup:Smoke(self.smokecolortype, 55, 1)
 
       if selectedGroup:IsAirPlane() then
         MESSAGE:New(selectedGroup:GetCallsign() .. ", JTAC, ... STAND BY FOR NINE LINE... ", self.TICMessageShowTime, "")
             :ToGroup(selectedGroup)
         MESSAGE:New("TYPE 3 CONTROL, BOMB ON TARGET. MISSILES FOLLOWED BY ROCKETS & GUNS.", self.TICMessageShowTime, "")
             :ToGroup(selectedGroup)
-        MESSAGE:New("1. N/A.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("2. N/A.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("3. N/A.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("4. " .. math.floor(enemyGroup:GetAltitude() * 3.28084) .. " Feet ASL", self.TICMessageShowTime, "")
-            :ToGroup(selectedGroup)
-        MESSAGE:New("5. ENEMY MECHANISED GROUP.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("6. " .. enemycoorstring, self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("7. NO MARK", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("8. FROM THE " .. Direction .. " 300 to 500 METERS DANGER CLOSE!", self.TICMessageShowTime, "")
-            :ToGroup(selectedGroup)
-        MESSAGE:New(" MARKED BY " .. self.smokecolor .. " SMOKE!", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("9. EGRESS AT YOUR DISCRETION.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
       else
         MESSAGE:New(selectedGroup:GetCallsign() .. ", JTAC, ... STAND BY FOR FIVE LINE... ", self.TICMessageShowTime, "")
             :ToGroup(selectedGroup)
-        MESSAGE:New("1. TYPE 2 CONTROL, BOMB ON TARGET. MISSILES FOLLOWED BY ROCKETS & GUNS.", self.TICMessageShowTime,
-          ""):ToGroup(selectedGroup)
-        MESSAGE:New("2. MY POSITION " .. friendlycoorstring .. " MARKED BY " .. self.smokecolor .. " SMOKE!",
-          self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("3. TARGET LOCATION: " .. Direction .. " 300 to 500 METERS!", self.TICMessageShowTime, ""):ToGroup(
-          selectedGroup)
-        MESSAGE:New("4. ENEMY TROOPS AND VEHICLES IN THE OPEN, " .. self.distance_marking_text, self.TICMessageShowTime,
-          ""):ToGroup(selectedGroup)
-        MESSAGE:New("5. " .. shoulderDir .. " SHOULDER. PULL YOUR DISCRETION. DANGER CLOSE, FOXTROT WHISKEY!",
-          self.TICMessageShowTime, ""):ToGroup(selectedGroup)
       end
+	  self:_RepeatBrief(selectedGroup)
       return self
     end)
 
@@ -378,7 +328,7 @@ do
             -- GOOD EFFECTS ON TARGET!
             --retreat
 
-            if EventData.IniGroup == samesameIniGroup then
+            if EventData.IniGroup == samesameIniGroup or (EventData.IniGroup:IsHelicopter() == false and EventData.IniGroup:IsAirplane() == false) then
               return
             else
               --if UseTICSounds == true then
@@ -569,12 +519,17 @@ do
                 :Refresh()
             local checkOutMenu = MENU_GROUP_COMMAND:New(_group, "Check-Out", casMenu, self._OffStation, self, _group,
               _unit):Refresh()
+			local NewSmokeMenu = MENU_GROUP_COMMAND:New(_group, "Deploy New Smoke", casMenu, self.NewSmoke, self, _group):Refresh()
+			local RepeatBriefMenu = MENU_GROUP_COMMAND:New(_group, "Repeat CAS Brief", casMenu, self._RepeatBrief, self, _group):Refresh()
+			  
             -- sub menus
             -- sub menu troops management
             if self.OnStation[_group:GetName()] == true then
               checkInmenu:Remove()
             elseif self.OnStation[_group:GetName()] ~= true then
               checkOutMenu:Remove()
+			  NewSmokeMenu:Remove()
+			  RepeatBriefMenu:Remove()
             end
             local units = _group:GetUnits()
             for _, _unit in pairs(units) do
@@ -665,6 +620,87 @@ do
       inZone = Unit:IsInZone(zone)
     end
     return inZone
+  end
+  
+  function CAS:NewSmoke(PlayerGroup)
+	
+	self:selectSmokeColour()
+    self.spawnedFriendlyGroup[PlayerGroup:GetName()]:Smoke(self.smokecolortype, 55, 1)
+	MESSAGE:New("REMARKING MY POSITION WITH  " .. self.smokecolor .. " SMOKE!", 15, ""):ToAll()
+  end
+
+  function CAS:selectSmokeColour()
+	smokecolornum = math.random(1, 5)
+      if smokecolornum == 1 then
+        self.smokecolor = "GREEN"
+        self.smokecolortype = SMOKECOLOR.Green
+        --smoke_sound = "greensmoke.ogg"
+      end
+      if smokecolornum == 2 then
+        self.smokecolor = "RED"
+        self.smokecolortype = SMOKECOLOR.Red
+        --smoke_sound = "redsmoke.ogg"
+      end
+      if smokecolornum == 3 then
+        self.smokecolor = "WHITE"
+        self.smokecolortype = SMOKECOLOR.White
+        --smoke_sound = "whitesmoke.ogg"
+      end
+      if smokecolornum == 4 then
+        self.smokecolor = "ORANGE"
+        self.smokecolortype = SMOKECOLOR.Orange
+        --smoke_sound = "orangesmoke.ogg"
+      end
+      if smokecolornum == 5 then
+        self.smokecolor = "BLUE"
+        self.smokecolortype = SMOKECOLOR.Blue
+        --smoke_sound = "bluesmoke.ogg"
+      end
+  end
+  
+  function CAS:_RepeatBrief(selectedGroup)
+	local NMEGRP = self.spawnedEnemyGroup[selectedGroup:GetName()]
+	local friendlycoor = self.spawnedFriendlyGroup[selectedGroup:GetName()]:GetCoordinate()
+    local friendlycoorstring = friendlycoor:ToStringMGRS(Settings)
+
+    local enemycoor = NMEGRP:GetCoordinate()
+    local enemycoorstring = enemycoor:ToStringMGRS(Settings)
+	
+	shouldernum = math.random(1, 2)
+      if shouldernum == 1 then
+        shoulderDir = "LEFT"
+        shoulderSound = "leftshoulder.ogg"
+      else
+        shoulderDir = "RIGHT"
+        shoulderSound = "rightshoulder.ogg"
+      end
+	
+	if selectedGroup:IsAirPlane() then 
+		MESSAGE:New("1. N/A.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+        MESSAGE:New("2. N/A.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+        MESSAGE:New("3. N/A.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+        MESSAGE:New("4. " .. math.floor(NMEGRP:GetAltitude() * 3.28084) .. " Feet ASL", self.TICMessageShowTime, "")
+            :ToGroup(selectedGroup)
+        MESSAGE:New("5. ENEMY MECHANISED GROUP.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+        MESSAGE:New("6. " .. enemycoorstring, self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+        MESSAGE:New("7. NO MARK", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+        MESSAGE:New("8. FROM THE " .. Direction .. " 300 to 500 METERS DANGER CLOSE!", self.TICMessageShowTime, "")
+            :ToGroup(selectedGroup)
+        MESSAGE:New(" MARKED BY " .. self.smokecolor .. " SMOKE!", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+        MESSAGE:New("9. EGRESS AT YOUR DISCRETION.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+	else
+		MESSAGE:New("1. TYPE 2 CONTROL, BOMB ON TARGET. MISSILES FOLLOWED BY ROCKETS & GUNS.", self.TICMessageShowTime,
+          ""):ToGroup(selectedGroup)
+        MESSAGE:New("2. MY POSITION " .. friendlycoorstring .. " MARKED BY " .. self.smokecolor .. " SMOKE!",
+          self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+        MESSAGE:New("3. TARGET LOCATION: " .. Direction .. " 300 to 500 METERS!", self.TICMessageShowTime, ""):ToGroup(
+          selectedGroup)
+        MESSAGE:New("4. ENEMY TROOPS AND VEHICLES IN THE OPEN, " .. self.distance_marking_text, self.TICMessageShowTime,
+          ""):ToGroup(selectedGroup)
+        MESSAGE:New("5. " .. shoulderDir .. " SHOULDER. PULL YOUR DISCRETION. DANGER CLOSE, FOXTROT WHISKEY!",
+          self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+	end
+  
   end
 
   function CAS:onafterStart(From, Event, To)
