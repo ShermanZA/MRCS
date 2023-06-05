@@ -150,6 +150,7 @@ do
     self.OnStation = {}
     self.playerGroups = SET_GROUP:New():AddGroupsByName(CASGroupNames)
 	self.lasercode = {1688, 1776, 1113, 1772}
+	self.lasertime = 180
 
     ------------------------
     --- Pseudo Functions ---
@@ -696,7 +697,7 @@ do
             :ToGroup(selectedGroup)
         MESSAGE:New("5. ENEMY MECHANISED GROUP.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
         MESSAGE:New("6. " .. enemycoorstring, self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("7. NO MARK", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
+        MESSAGE:New("7. " .. self.distance_marking_text .. "", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
         MESSAGE:New("8. FROM THE " .. Direction .. " 300 to 500 METERS DANGER CLOSE!", self.TICMessageShowTime, "")
             :ToGroup(selectedGroup)
         MESSAGE:New(" MARKED BY " .. self.smokecolor .. " SMOKE!", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
@@ -753,10 +754,10 @@ do
       --DEBUG _G[FirePointCoord]:MarkToAll("firepointcoord")
       --MESSAGE:New("Lase is possible, standby!"):ToAll()
       laserspot = SPOT:New(markgroup:GetUnit(1))
-      laserspot:LaseOn(badUnit,lcode,lasertime)
+      laserspot:LaseOn(badUnit,lcode,self.lasertime)
       --laserspot:LaseOnCoordinate(_G[FirePointCoord], 1688, 120)
       if laserspot:IsLasing() then
-      MESSAGE:New("Laser on, code " .. lcode ..  ", holding for " .. lasertime .. "  seconds!"):ToGroup(selectedGroup,TICMessageShowTime)
+      MESSAGE:New("Laser on, code " .. lcode ..  ", holding for " .. self.lasertime .. "  seconds!"):ToGroup(selectedGroup,TICMessageShowTime)
 	  end
    else
       MESSAGE:New("Negative Lase, unable.."):ToGroup(selectedGroup)
