@@ -55,7 +55,8 @@ do
     Friendly              = {},
     Badgroup              = {},
     tracermark_groupname  = "none",
-    FirePointVec2         = "none",
+    FirePointVec2         = {},
+	FirePointCoord		  = {},
     SpawnedFriendly       = {},
     OnStation             = {},
     casMenu,
@@ -63,7 +64,9 @@ do
     checkOutMenu,
 	NewSmokeMenu,
 	RepeatBriefMenu,
+	TracerMenu,
     FriendlyTemplates = {},
+	lasercode = {},
   }
 
   CAS.version = "0.0.1"
@@ -139,12 +142,14 @@ do
       .baddiesTable)
 
     self.tracermark_groupname = "none"
-    self.FirePointVec2 = "none"
+	self.FirePointCoord = {}
+    self.FirePointVec2 = {}
     self.SpawnedFriendly = {}
     self.coalition = coalition.side.BLUE
     self.coalitiontxt = "blue"
     self.OnStation = {}
     self.playerGroups = SET_GROUP:New():AddGroupsByName(CASGroupNames)
+	self.lasercode = {1688, 1776, 1113, 1772}
 
     ------------------------
     --- Pseudo Functions ---
@@ -231,11 +236,9 @@ do
 
       if self.friendly_return_fire == true then
         spawngroup:OptionAlarmStateGreen()
-        FirePointCoord = unit1:GetOffsetCoordinate(offset1, 0, offset2)
-        FirePointVec2 = FirePointCoord:GetVec2()
-        _G[FirePointVec2] = FirePointCoord:GetVec2()
-        _G[FirePointCoord] = FirePointCoord
-        local fireTask = spawngroup:TaskFireAtPoint(FirePointVec2, 1, nil, 3221225470, 8)
+        self.FirePointCoord[selectedGroup:GetName()] = unit1:GetOffsetCoordinate(offset1, 0, offset2)
+        self.FirePointVec2[selectedGroup:GetName()] = self.FirePointCoord[selectedGroup:GetName()]:GetVec2()
+        local fireTask = spawngroup:TaskFireAtPoint(self.FirePointVec2[selectedGroup:GetName()], 1, nil, 3221225470, 8)
         local fireStop = spawngroup:TaskFunction("GroupHoldFire")
         function GroupHoldFire(grp)
           grp:OptionROEHoldFire(true)
@@ -328,7 +331,7 @@ do
             -- GOOD EFFECTS ON TARGET!
             --retreat
 
-            if EventData.IniGroup == samesameIniGroup or (EventData.IniGroup:IsHelicopter() == false and EventData.IniGroup:IsAirplane() == false) then
+            if EventData.IniGroup == samesameIniGroup or EventData.IniGroup:IsAir() ~= true then
               return
             else
               --if UseTICSounds == true then
@@ -435,11 +438,13 @@ do
     MESSAGE:New("Roger, confirm you are off-station.", 15):ToGroup(arg)
     arg.OnStation = false
     if self.spawnedFriendlyGroup[arg:GetName()]:IsAlive() then
-      self.spawnedFriendlyGroup[arg:GetName()]:Destroy(nil, 30)
+		local FriendlyToDelete = self.spawnedFriendlyGroup[arg:GetName()]
+		FriendlyToDelete:Destroy(nil, 30)
     end
     --rune spawnedFriendlyGroup and spawnedEnemyGroup into list
     if self.spawnedEnemyGroup[arg:GetName()]:IsAlive() then
-      self.spawnedEnemyGroup[arg:GetName()]:Destroy(nil, 30)
+		local EnemyToDelete = self.spawnedEnemyGroup[arg:GetName()]
+		EnemyToDelete:Destroy(nil, 30)
     end
     self.OnStation[arg:GetName()] = false
     self.MenusDone[reqUnit:GetName()] = false
@@ -521,6 +526,12 @@ do
               _unit):Refresh()
 			local NewSmokeMenu = MENU_GROUP_COMMAND:New(_group, "Deploy New Smoke", casMenu, self.NewSmoke, self, _group):Refresh()
 			local RepeatBriefMenu = MENU_GROUP_COMMAND:New(_group, "Repeat CAS Brief", casMenu, self._RepeatBrief, self, _group):Refresh()
+			local TracerMenu = MENU_GROUP_COMMAND:New(_group, "MARK W/ TRACER", casMenu, self._TracerMark, self, _group):Refresh()
+			local LaserMenu = MENU_GROUP:New(_group, "MARK TGT W/LASER", casMenu):Refresh()
+  
+			for i=1,#self.lasercode do
+				MENU_GROUP_COMMAND:New( _group,"CODE: " .. self.lasercode[i] ,LaserMenu,self.LaseTarget,self, _group, self.lasercode[i]):Refresh()
+			end
 			  
             -- sub menus
             -- sub menu troops management
@@ -530,6 +541,8 @@ do
               checkOutMenu:Remove()
 			  NewSmokeMenu:Remove()
 			  RepeatBriefMenu:Remove()
+			  TracerMenu:Remove()
+			  LaserMenu:Remove()
             end
             local units = _group:GetUnits()
             for _, _unit in pairs(units) do
@@ -701,6 +714,55 @@ do
           self.TICMessageShowTime, ""):ToGroup(selectedGroup)
 	end
   
+  end
+  
+  function CAS:_TracerMark(selectedGroup)
+  
+   markgroup = self.spawnedFriendlyGroup[selectedGroup:GetName()]
+   markgroup:OptionROEHoldFire()
+   markgroup:OptionAlarmStateGreen()                           
+      --local deadsound = USERSOUND:New("weareCM2.ogg"):ToGroup(grp) 
+        MESSAGE:New("Roger that, marking enemy direction with 50 cal!"):ToGroup(selectedGroup)      
+       
+     --end
+     
+    markTask = markgroup:TaskFireAtPoint(self.FirePointVec2[selectedGroup:GetName()],1,25,nil,68)
+    local fireStop = markgroup:TaskFunction("MarkGroupHoldFire")
+    function MarkGroupHoldFire(grp) 
+      grp:OptionROEHoldFire()
+      env.info("TICDEBUG: HOLD FIRE!") 
+      MESSAGE:New("TRACERS OUT, HOLDING FIRE... "):ToGroup(selectedGroup)
+         
+    end
+          
+    markgroup:SetTask(markTask,1)
+    markgroup:SetTask(fireStop,15)
+
+  end
+  
+  function CAS:LaseTarget(selectedGroup, lcode)
+   local badGroup = self.spawnedEnemyGroup[selectedGroup:GetName()]
+   local badUnit = badGroup:GetUnit(1)
+   markgroup = self.spawnedFriendlyGroup[selectedGroup:GetName()]
+   markgroup:OptionROEHoldFire()
+   markgroup:OptionAlarmStateGreen()
+   markgroupcoord = markgroup:GetCoordinate()
+   
+   if markgroupcoord:IsLOS(self.FirePointCoord[selectedGroup:GetName()]) and badUnit:IsAlive() then
+      --GROUP:isal
+      --DEBUG _G[FirePointCoord]:MarkToAll("firepointcoord")
+      --MESSAGE:New("Lase is possible, standby!"):ToAll()
+      laserspot = SPOT:New(markgroup:GetUnit(1))
+      laserspot:LaseOn(badUnit,lcode,lasertime)
+      --laserspot:LaseOnCoordinate(_G[FirePointCoord], 1688, 120)
+      if laserspot:IsLasing() then
+      MESSAGE:New("Laser on, code " .. lcode ..  ", holding for " .. lasertime .. "  seconds!"):ToGroup(selectedGroup,TICMessageShowTime)
+	  end
+   else
+      MESSAGE:New("Negative Lase, unable.."):ToGroup(selectedGroup)
+    return
+   end
+   
   end
 
   function CAS:onafterStart(From, Event, To)
