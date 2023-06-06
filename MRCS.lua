@@ -750,7 +750,7 @@ do
    markgroup:OptionAlarmStateGreen()
    markgroupcoord = markgroup:GetCoordinate()
    
-   if markgroupcoord:IsLOS(self.FirePointCoord[selectedGroup:GetName()]) and badUnit:IsAlive() then
+   if markgroupcoord:IsLOS(self.FirePointCoord[selectedGroup:GetName()]) ~= true and badUnit:IsAlive() then
       --GROUP:isal
       --DEBUG _G[FirePointCoord]:MarkToAll("firepointcoord")
       --MESSAGE:New("Lase is possible, standby!"):ToAll()
