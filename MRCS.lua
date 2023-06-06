@@ -69,7 +69,7 @@ do
 	lasercode = {},
   }
 
-  CAS.version = "0.0.1"
+  CAS.version = "1.3.2"
 
 
 
@@ -232,6 +232,7 @@ do
         end, self)
 
       local enemyGroup = badGroup:SpawnFromCoordinate(enemySpawnPoint)
+	  enemyGroup:SetCommandInvisible(true)
       self.spawnedEnemyGroup[selectedGroup:GetName()] = enemyGroup
       --enemyGroup:OptionROEHoldFire(true)
 
@@ -303,7 +304,7 @@ do
       mortals:_GetController():setCommand(immcmd)
       --env.info("TICDEBUG: group is mortal again!")
     end
-
+	sgrp:OptionROEOpenFire()
     sgrp:SetTask(mortalTask, self.friendly_fire_time)
     env.info("group mortal")
 
