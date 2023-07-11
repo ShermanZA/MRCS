@@ -395,7 +395,7 @@ do
     -- Calculate distances and populate the casZoneList table
     for _, zoneName in ipairs(self.CZones) do
       local zone = ZONE:FindByName(zoneName)
-      local distance = dist(zone:GetVec2(), _unit:GetVec2())
+      local distance = dist(zone:GetVec2(), detectedGroup:GetVec2())
       casZoneList[zoneName] = distance
     end
 
