@@ -22,13 +22,13 @@ do
     coalitiontxt          = "blue",
     CasGroups             = {}, -- #GROUP_SET of heli pilots
     CasUnits              = {}, -- Table of helicopter #GROUPs
-    spawnedFriendlyGroup  = {},
-    spawnedEnemyGroup     = {},
+    SpawnedFriendlyGroup  = {},
+    SpawnedEnemyGroup     = {},
     -- Define the list of CAS zones
     CZones                = {},
     CZoneSets             = {},
     smokecolor            = {},
-	smokecolortype        = {},
+    smokecolortype        = {},
     TICMessageShowTime    = 120,
     hit_check_interval    = 30,
     friendly_return_fire  = true,
@@ -56,17 +56,27 @@ do
     Badgroup              = {},
     tracermark_groupname  = "none",
     FirePointVec2         = {},
-	FirePointCoord		  = {},
+    FirePointCoord        = {},
     SpawnedFriendly       = {},
-    OnStation             = {},
+    SpawnedEnemy          = {},
+    IsOnStation             = {},
     casMenu,
     checkInmenu,
     checkOutMenu,
-	NewSmokeMenu,
-	RepeatBriefMenu,
-	TracerMenu,
+    NewSmokeMenu,
+    RepeatBriefMenu,
+    TracerMenu,
     FriendlyTemplates = {},
-	lasercode = {},
+    lasercode = {},
+    CASMissions = {},
+    _CASMission = {
+      MissionID = "",
+      CreatedByGroup = "",
+      JoinedGroups = {},
+      SpawnedFriendlyGroup = "",
+      SpawnedEnemyGroup = ""
+    }
+
   }
 
   CAS.version = "1.3.2"
@@ -97,8 +107,8 @@ do
     self.MenusDone = {}
     self.CasUnits = {}
     self.prefixes = CASGroupNames
-    self.spawnedFriendlyGroup = {}
-    self.spawnedEnemyGroup = {}
+    self.SpawnedFriendlyGroup = {}
+    self.SpawnedEnemyGroup = {}
     self.CZoneTemplates = ZoneNames
     self.CZones = {}
     self.CZoneSets = SET_ZONE:New():AddZonesByName(self.CZoneTemplates)
@@ -108,7 +118,7 @@ do
       end
     end)
     self.smokecolor = ""
-	self.smokecolortype = ""
+    self.smokecolortype = ""
     self.TICMessageShowTime = 120
     self.hit_check_interval = 30
     self.friendly_return_fire = true
@@ -142,15 +152,17 @@ do
       .baddiesTable)
 
     self.tracermark_groupname = "none"
-	self.FirePointCoord = {}
+    self.FirePointCoord = {}
     self.FirePointVec2 = {}
     self.SpawnedFriendly = {}
+    self.SpawnedEnemy = {}
     self.coalition = coalition.side.BLUE
     self.coalitiontxt = "blue"
-    self.OnStation = {}
+    self.IsOnStation = {}
     self.playerGroups = SET_GROUP:New():AddGroupsByName(CASGroupNames)
-	self.lasercode = {1688, 1776, 1113, 1772}
-	self.lasertime = 180
+    self.lasercode = { 1688, 1776, 1113, 1772 }
+    self.lasertime = 180
+    self.CASMissions = {}
 
     ------------------------
     --- Pseudo Functions ---
@@ -196,8 +208,20 @@ do
     return self
   end
 
+  function CAS:_CASMission(detectedGroup, FRD, NME)
+    local newMission = {
+        missionID = "Mission: " .. detectedGroup:GetCallsign(),
+        CreatedByGroup = detectedGroup:GetName(),
+        JoinedGroups = {detectedGroup:GetName()},
+        SpawnedFriendlyGroup = FRD,
+        SpawnedEnemyGroup = NME
+    }
+    setmetatable(newMission, { __index = detectedGroup:GetName() })
+    return newMission
+  end
+
   -- Function to spawn a group at a specified sub-zone
-  function CAS:_spawnGroupAtSubZone(zoneName, selectedGroup, detectedUnit)
+  function CAS:_spawnGroupAtSubZone(zoneName, selectedGroup)
     self:T(self.lid .. " _spawnGroupAtSubZone")
     self:F(zoneName, selectedGroup)
 
@@ -214,9 +238,9 @@ do
         end
       end
     end)
-
     self.Friendly:InitRandomizeZones(subZones)
     local badGroup = self.Badgroup
+    -- seperate the enemy spawn into a seperate function to be returned
     self.Friendly:OnSpawnGroup(function(spawngroup)
       unit1 = spawngroup:GetUnit(1)
       local immcmd = { id = 'SetImmortal', params = { value = true } }
@@ -224,16 +248,19 @@ do
       -- enemyGroup = spawnEnemyGroupNearFriendlies(unit1,enemySpawnDistance,detectedZoneName)
       Direction = "none"
       local enemySpawnPoint = self:_generateDirectionAndOffset(unit1, self.offsetX, self.offsetZ)
-
+      
       self.Badgroup:OnSpawnGroup(
         function(sgrp)
-          self:_SetSpawnBehaviour(sgrp, zoneName, selectedGroup, detectedUnit)
+          self:_SetSpawnBehaviour(sgrp, zoneName, selectedGroup)
           return self
         end, self)
 
-      local enemyGroup = badGroup:SpawnFromCoordinate(enemySpawnPoint)
-	  enemyGroup:SetCommandInvisible(true)
-      self.spawnedEnemyGroup[selectedGroup:GetName()] = enemyGroup
+      badGroup = self.Badgroup:SpawnFromCoordinate(enemySpawnPoint)
+      local casMis = self:_CASMission(selectedGroup, spawngroup.GroupName, badGroup:GetName())
+      self.CASMissions[selectedGroup:GetName()] = casMis--table.insert(self.CASMissions,casMis)
+      self.SpawnedEnemy = badGroup
+      self.SpawnedEnemy:SetCommandInvisible(true)
+      self.SpawnedEnemyGroup[selectedGroup:GetName()] = self.SpawnedEnemy
       --enemyGroup:OptionROEHoldFire(true)
 
       if self.friendly_return_fire == true then
@@ -266,7 +293,7 @@ do
       local friendlycoor = spawngroup:GetCoordinate()
       local friendlycoorstring = friendlycoor:ToStringMGRS(Settings)
 
-      local enemycoor = enemyGroup:GetCoordinate()
+      local enemycoor = self.SpawnedEnemy:GetCoordinate()
       local enemycoorstring = enemycoor:ToStringMGRS(Settings)
 
       self:selectSmokeColour()
@@ -281,16 +308,21 @@ do
         MESSAGE:New(selectedGroup:GetCallsign() .. ", JTAC, ... STAND BY FOR FIVE LINE... ", self.TICMessageShowTime, "")
             :ToGroup(selectedGroup)
       end
-	  self:_RepeatBrief(selectedGroup)
+      self:_RepeatBrief(selectedGroup)
+      
+      local casMis = self:_CASMission(selectedGroup, spawngroup:GetName(), badGroup:GetName())
+      self.CASMissions[selectedGroup:GetName()] = casMis--table.insert(self.CASMissions,casMis)
+      self.IsOnStation[selectedGroup:GetName()] = true
+      self.MenusDone[selectedGroup:GetName()] = false
+      self:_RefreshF10Menus()
       return self
     end)
-
-
     self.SpawnedFriendly = self.Friendly:Spawn()
+    self.SpawnedFriendlyGroup[selectedGroup:GetName()] = self.SpawnedFriendly
     return self
   end
 
-  function CAS:_SetSpawnBehaviour(sgrp, zoneName, selectedGroup, detectedUnit)
+  function CAS:_SetSpawnBehaviour(sgrp, zoneName, selectedGroup)
     self:T(self.lid .. " _SetSpawnBehaviour")
     CasSelf = self
     local zone = ZONE:FindByName(zoneName)
@@ -304,7 +336,8 @@ do
       mortals:_GetController():setCommand(immcmd)
       --env.info("TICDEBUG: group is mortal again!")
     end
-	sgrp:OptionROEOpenFire()
+
+    sgrp:OptionROEOpenFire()
     sgrp:SetTask(mortalTask, self.friendly_fire_time)
     env.info("group mortal")
 
@@ -366,11 +399,19 @@ do
                 end
               end)
               CharlieMike = true
-              if CasSelf.spawnedFriendlyGroup[selectedGroup:GetName()]:IsAlive() then
-                CasSelf.spawnedFriendlyGroup[selectedGroup:GetName()]:Destroy(nil, 30)
+              if CasSelf.SpawnedFriendlyGroup[selectedGroup:GetName()]:IsAlive() then
+                CasSelf.SpawnedFriendlyGroup[selectedGroup:GetName()]:Destroy(nil, 30)
               end
-              CasSelf.OnStation[selectedGroup:GetName()] = false
-              CasSelf.MenusDone[detectedUnit:Name()] = false
+              for key, grp in pairs(CasSelf.CASMissions[selectedGroup:GetName()].JoinedGroups) do
+                CasSelf.SpawnedFriendlyGroup[grp] = nil
+                CasSelf.SpawnedEnemyGroup[grp] = nil
+                CasSelf.IsOnStation[grp] = false
+                --local units = GROUP:FindByName(grp):GetUnits()
+               -- for key, unit in pairs(units) do
+                  CasSelf.MenusDone[grp] = false
+                --end
+              end
+              CasSelf:_ClearGroupsFromMission(CasSelf.CASMissions[selectedGroup:GetName()])
               CasSelf:_RefreshF10Menus()
             end
           end
@@ -381,11 +422,10 @@ do
     return CasSelf
   end
 
-  function CAS:_OnStation(arg, _unit)
+  function CAS:_OnStation(arg)
     self:T(self.lid .. " _OnStation")
     -- Check if the player is in a CAS zone
     local detectedZoneName
-    local detectedUnit = _unit
     local detectedGroup = arg
 
     --for _, GroupName in pairs( playerGroupNames ) do
@@ -419,38 +459,73 @@ do
     end
     if not inCASZone then
       MESSAGE:New("You are outside of any CAS Zone. Enter a CAS zone and try again.", 15):ToGroup(detectedGroup)
-      self.OnStation[detectedGroup:GetName()] = false
-      self.MenusDone[detectedUnit:Name()] = false
-      return
+      self.IsOnStation[detectedGroup:GetName()] = false
+      self.MenusDone[detectedGroup:GetName()] = false
+      return self
     else
       -- Spawn the friendly group at the specified sub-zone
-      local friendlyGroup = self:_spawnGroupAtSubZone(detectedZoneName, detectedGroup, detectedUnit)
-      self.spawnedFriendlyGroup[detectedGroup:GetName()] = self.SpawnedFriendly
-      self.OnStation[detectedGroup:GetName()] = true
-      self.MenusDone[detectedUnit:Name()] = false
-      self:_RefreshF10Menus()
+      local friendlyGroup = self:_spawnGroupAtSubZone(detectedZoneName, detectedGroup)
     end
     --break
     --end
     return self
   end
 
-  function CAS:_OffStation(arg, reqUnit)
+  function CAS:_OffStation(arg, casMis)
     self:T(self.lid .. " _OffStation")
-    MESSAGE:New("Roger, confirm you are off-station.", 15):ToGroup(arg)
-    arg.OnStation = false
-    if self.spawnedFriendlyGroup[arg:GetName()]:IsAlive() then
-		local FriendlyToDelete = self.spawnedFriendlyGroup[arg:GetName()]
-		FriendlyToDelete:Destroy(nil, 30)
+    --arg.IsOnStation = false    
+    if self.SpawnedFriendlyGroup[arg:GetName()]:IsAlive() then
+      local FriendlyToDelete = self.SpawnedFriendlyGroup[arg:GetName()]
+      FriendlyToDelete:Destroy(nil, 30)
     end
     --rune spawnedFriendlyGroup and spawnedEnemyGroup into list
-    if self.spawnedEnemyGroup[arg:GetName()]:IsAlive() then
-		local EnemyToDelete = self.spawnedEnemyGroup[arg:GetName()]
-		EnemyToDelete:Destroy(nil, 30)
+    if self.SpawnedEnemyGroup[arg:GetName()]:IsAlive() then
+      local EnemyToDelete = self.SpawnedEnemyGroup[arg:GetName()]
+      EnemyToDelete:Destroy(nil, 30)
     end
-    self.OnStation[arg:GetName()] = false
-    self.MenusDone[reqUnit:GetName()] = false
+    local createdGroup = casMis.CreatedByGroup
+    for key, grpnme in pairs(self.CASMissions[createdGroup].JoinedGroups) do
+      self.SpawnedFriendlyGroup[grpnme] = nil
+      self.SpawnedEnemyGroup[grpnme] = nil
+      self.IsOnStation[grpnme] = false
+      local grp = GROUP:FindByName(grpnme)
+      self.MenusDone[grpnme] = false
+    end
+
+    self:_ClearGroupsFromMission(self.CASMissions[arg:GetName()])
+    MESSAGE:New("Roger, confirm you are off-station.", 15):ToGroup(arg)
     self:_RefreshF10Menus()
+    return self
+  end
+
+  function CAS:_Withdraw(arg, casMis)
+    self:T(self.lid .. "_Withdraw")
+    local selectedGroupName = arg:GetName()
+    self.IsOnStation[selectedGroupName] = false
+    self.SpawnedFriendlyGroup[selectedGroupName] = nil
+    self.SpawnedEnemyGroup[selectedGroupName] = nil
+    local createdGroup = casMis.CreatedByGroup
+    for i, grpnme in pairs(self.CASMissions[createdGroup].JoinedGroups) do
+      if grpnme == selectedGroupName then
+          table.remove(self.CASMissions[createdGroup], i)
+          break
+      end
+    end
+    self.MenusDone[selectedGroupName] = false
+    MESSAGE:New("Roger, will continue with remain assets on station.", 15):ToGroup(arg)
+    self:_RefreshF10Menus()
+    return self
+  end
+
+  function CAS:_ClearGroupsFromMission(casMis)
+    self:T(self.lid .. " _ClearGroupsFromMission")
+    local groupsToClear = casMis.JoinedGroups
+
+    for i, grp in ipairs(groupsToClear) do
+      self.CASMissions[grp].JoinedGroups = {}
+      self.CASMissions[grp] = nil
+    end
+
     return self
   end
 
@@ -480,83 +555,118 @@ do
     return self
   end
 
+  function CAS:_JoinMission(selectedGroup, casMission)
+    self.SpawnedFriendlyGroup[selectedGroup:GetName()] = GROUP:FindByName(self.SpawnedFriendlyGroup[casMission.CreatedByGroup].GroupName)
+    self.SpawnedEnemyGroup[selectedGroup:GetName()] = GROUP:FindByName(self.SpawnedEnemyGroup[casMission.CreatedByGroup].GroupName)
+    self.FirePointVec2[selectedGroup:GetName()] = self.FirePointVec2[casMission.CreatedByGroup]
+    self.FirePointCoord[selectedGroup:GetName()] = self.FirePointCoord[casMission.CreatedByGroup]
+    table.insert(casMission.JoinedGroups,selectedGroup:GetName())
+    local callsign = GROUP:FindByName(selectedGroup:GetName()):GetCallsign()
+    MESSAGE:New(callsign .. ", JTAC, ... STAND BY FOR NINE LINE IN PROGRESS... ", self.TICMessageShowTime):ToGroup(selectedGroup)
+    self:_RepeatBrief(selectedGroup)
+    
+    local units = selectedGroup:GetUnits()
+    for key, unit in pairs(units) do
+      self.MenusDone[selectedGroup:GetName()] = false
+    end
+
+    for key, grp in pairs(casMission.JoinedGroups) do
+      self.CASMissions[grp] = casMission
+    end
+    self.IsOnStation[selectedGroup:GetName()] = true
+    self:_RefreshF10Menus()
+    return self
+  end
+
   function CAS:_RefreshF10Menus()
     self:T(self.lid .. " _RefreshF10Menus")
-    local Players = CLIENT:GetPlayers()
     self.CasGroups = SET_GROUP:New():FilterCoalitions(self.coalitiontxt):FilterPrefixes(self.prefixes):FilterStart()
-    local PlayerSet = self.CasGroups              -- Core.Set#SET_GROUP
-    local PlayerTable = PlayerSet:GetSetObjects() -- #table of #GROUP objects
-    -- rebuild units table
-    local _UnitList = {}
-    for _key, _group in pairs(PlayerTable) do
-      local units = _group:GetUnits()
-      for _, _unit in pairs(units) do
-        local unit = CLIENT:FindByName(_unit:GetName())
-        --MESSAGE:New(unit:GetName(), 15):ToAll()
-        --local _unit = _group:GetUnit(1) -- Wrapper.Unit#UNIT Asume that there is only one unit in the flight for players
-        if unit then
-          -- if _unit:IsAlive() and _unit:IsPlayer() then
-          if _group:IsPlayer() and _group:IsAlive() then
-            if unit:IsHelicopter() or (unit:IsAirPlane()) then --ensure no stupid unit entries here
-              local unitName = unit:GetName()
-              _UnitList[unitName] = unitName
-            end
-          end -- end isAlive
-        end   -- end if _unit
-      end
-    end       -- end for
-    self.CasUnits = _UnitList
-
-    -- subcats?
-
+    local PlayerSet = _DATABASE.CLIENTS --self.CasGroups              -- Core.Set#SET_GROUP
+    local PlayerTable = self.CasGroups:GetSetObjects() -- #table of #GROUP objects
 
     -- build unit menus
     local menucount = 0
     local menus = {}
-    for _, _unitName in pairs(self.CasUnits) do
-      if not self.MenusDone[_unitName] then
-        local _unit = CLIENT:FindByName(_unitName) -- Wrapper.Unit#UNIT
-        if _unit then
-          local _group = _unit:GetGroup()          -- Wrapper.Group#GROUP
-          if _group then
+    for _, _groupName in pairs(self.prefixes) do
+      if not self.MenusDone[_groupName] then
+        local _group = GROUP:FindByName(_groupName) -- Wrapper.Unit#UNIT
+          if _group and _group:IsAlive() then
+            --displayVariables(_group)
+            local distinctCASMissions = CreateDistinctList(self.CASMissions)
+            local misName = ""
+            for key, mis in pairs(distinctCASMissions) do
+              for key, grp in pairs(mis.JoinedGroups) do
+                if grp == _group:GetName() then
+                  misName = grp
+                end
+              end
+            end
             -- get chopper capabilities
             -- top menu
             casMenu = MENU_GROUP:New(_group, "CAS MENU", nil)
-            local checkInmenu = MENU_GROUP_COMMAND:New(_group, "Check-In", casMenu, self._OnStation, self, _group, _unit)
+            local checkInmenu = MENU_GROUP_COMMAND:New(_group, "Check-In", casMenu, self._OnStation, self, _group)
                 :Refresh()
             local checkOutMenu = MENU_GROUP_COMMAND:New(_group, "Check-Out", casMenu, self._OffStation, self, _group,
-              _unit):Refresh()
-			local NewSmokeMenu = MENU_GROUP_COMMAND:New(_group, "Deploy New Smoke", casMenu, self.NewSmoke, self, _group):Refresh()
-			local RepeatBriefMenu = MENU_GROUP_COMMAND:New(_group, "Repeat CAS Brief", casMenu, self._RepeatBrief, self, _group):Refresh()
-			local TracerMenu = MENU_GROUP_COMMAND:New(_group, "MARK W/ TRACER", casMenu, self._TracerMark, self, _group):Refresh()
-			local LaserMenu = MENU_GROUP:New(_group, "MARK TGT W/LASER", casMenu):Refresh()
-  
-			for i=1,#self.lasercode do
-				MENU_GROUP_COMMAND:New( _group,"CODE: " .. self.lasercode[i] ,LaserMenu,self.LaseTarget,self, _group, self.lasercode[i]):Refresh()
-			end
-			  
+             self.CASMissions[misName]):Refresh()
+
+              local withdrawMenu = MENU_GROUP_COMMAND:New(_group, "Withdraw From Mission", casMenu, self._Withdraw, self, _group,
+              self.CASMissions[misName]):Refresh()
+            
+            local missionsCount = ArrayCount(distinctCASMissions)
+            local joinMenu = MENU_GROUP:New(_group, "Join CAS Mission", casMenu):Refresh()
+            for index, casMis in pairs(distinctCASMissions) do
+              --MESSAGE:New("Mission ID: " .. casMis.missionID, 120):ToAll()
+              local MissionToAdd = MENU_GROUP_COMMAND:New(_group, casMis.missionID, joinMenu,
+              self._JoinMission, self, _group, casMis):Refresh()
+           end
+           
+            local NewSmokeMenu = MENU_GROUP_COMMAND:New(_group, "Deploy New Smoke", casMenu, self.NewSmoke, self, _group)
+                :Refresh()
+            local RepeatBriefMenu = MENU_GROUP_COMMAND:New(_group, "Repeat CAS Brief", casMenu, self._RepeatBrief, self,
+              _group):Refresh()
+            local TracerMenu = MENU_GROUP_COMMAND:New(_group, "MARK W/ TRACER", casMenu, self._TracerMark, self, _group)
+                :Refresh()
+            local LaserMenu = MENU_GROUP:New(_group, "MARK TGT W/LASER", casMenu):Refresh()
+
+            for i = 1, #self.lasercode do
+              MENU_GROUP_COMMAND:New(_group, "CODE: " .. self.lasercode[i], LaserMenu, self.LaseTarget, self, _group,
+                self.lasercode[i]):Refresh()
+            end
+            
             -- sub menus
             -- sub menu troops management
-            if self.OnStation[_group:GetName()] == true then
+            if self.IsOnStation[_group:GetName()] == true then
               checkInmenu:Remove()
-            elseif self.OnStation[_group:GetName()] ~= true then
+              joinMenu:Remove()
+              if self.CASMissions[_groupName] ~= nil and self.CASMissions[_groupName].CreatedByGroup == _groupName then
+                withdrawMenu:Remove()
+              end
+            elseif self.IsOnStation[_group:GetName()] ~= true or self.IsOnStation[_group:GetName()] == nil then
               checkOutMenu:Remove()
-			  NewSmokeMenu:Remove()
-			  RepeatBriefMenu:Remove()
-			  TracerMenu:Remove()
-			  LaserMenu:Remove()
+              if withdrawMenu ~= nil then
+                withdrawMenu:Remove()
+              end
+              NewSmokeMenu:Remove()
+              RepeatBriefMenu:Remove()
+              TracerMenu:Remove()
+              LaserMenu:Remove()
+              if (missionsCount < 1 or self.CASMissions[_group:GetName()] ~= nil) then
+                joinMenu:Remove()
+              end
             end
-            local units = _group:GetUnits()
-            for _, _unit in pairs(units) do
-              self.MenusDone[_unit:Name()] = true
-            end
+            self.MenusDone[_group:GetName()] = true
           end -- end group
-        end   -- end unit
       else    -- menu build check
         self:T(self.lid .. " Menus already done for this group!")
       end     -- end menu build check
     end       -- end for
     return self
+  end
+
+  function ArrayCount(T)
+    local count = 0
+    for _ in pairs(T) do count = count + 1 end
+    return count
   end
 
   function CAS:_generateDirectionAndOffset(unit1, offsetX, offsetZ)
@@ -636,135 +746,124 @@ do
     end
     return inZone
   end
-  
+
   function CAS:NewSmoke(PlayerGroup)
-	
-	self:selectSmokeColour()
-    self.spawnedFriendlyGroup[PlayerGroup:GetName()]:Smoke(self.smokecolortype, 55, 1)
-	MESSAGE:New("REMARKING MY POSITION WITH  " .. self.smokecolor .. " SMOKE!", 15, ""):ToAll()
+    self:selectSmokeColour()
+    self.SpawnedFriendlyGroup[PlayerGroup:GetName()]:Smoke(self.smokecolortype, 55, 1)
+    MESSAGE:New("REMARKING MY POSITION WITH  " .. self.smokecolor .. " SMOKE!", 15, ""):ToAll()
   end
 
   function CAS:selectSmokeColour()
-	smokecolornum = math.random(1, 5)
-      if smokecolornum == 1 then
-        self.smokecolor = "GREEN"
-        self.smokecolortype = SMOKECOLOR.Green
-        --smoke_sound = "greensmoke.ogg"
-      end
-      if smokecolornum == 2 then
-        self.smokecolor = "RED"
-        self.smokecolortype = SMOKECOLOR.Red
-        --smoke_sound = "redsmoke.ogg"
-      end
-      if smokecolornum == 3 then
-        self.smokecolor = "WHITE"
-        self.smokecolortype = SMOKECOLOR.White
-        --smoke_sound = "whitesmoke.ogg"
-      end
-      if smokecolornum == 4 then
-        self.smokecolor = "ORANGE"
-        self.smokecolortype = SMOKECOLOR.Orange
-        --smoke_sound = "orangesmoke.ogg"
-      end
-      if smokecolornum == 5 then
-        self.smokecolor = "BLUE"
-        self.smokecolortype = SMOKECOLOR.Blue
-        --smoke_sound = "bluesmoke.ogg"
-      end
+    smokecolornum = math.random(1, 5)
+    if smokecolornum == 1 then
+      self.smokecolor = "GREEN"
+      self.smokecolortype = SMOKECOLOR.Green
+      --smoke_sound = "greensmoke.ogg"
+    end
+    if smokecolornum == 2 then
+      self.smokecolor = "RED"
+      self.smokecolortype = SMOKECOLOR.Red
+      --smoke_sound = "redsmoke.ogg"
+    end
+    if smokecolornum == 3 then
+      self.smokecolor = "WHITE"
+      self.smokecolortype = SMOKECOLOR.White
+      --smoke_sound = "whitesmoke.ogg"
+    end
+    if smokecolornum == 4 then
+      self.smokecolor = "ORANGE"
+      self.smokecolortype = SMOKECOLOR.Orange
+      --smoke_sound = "orangesmoke.ogg"
+    end
+    if smokecolornum == 5 then
+      self.smokecolor = "BLUE"
+      self.smokecolortype = SMOKECOLOR.Blue
+      --smoke_sound = "bluesmoke.ogg"
+    end
   end
-  
+
   function CAS:_RepeatBrief(selectedGroup)
-	local NMEGRP = self.spawnedEnemyGroup[selectedGroup:GetName()]
-	local friendlycoor = self.spawnedFriendlyGroup[selectedGroup:GetName()]:GetCoordinate()
+    local NMEGRP = self.SpawnedEnemyGroup[selectedGroup:GetName()]
+    local friendlycoor = self.SpawnedFriendlyGroup[selectedGroup:GetName()]:GetCoordinate()
     local friendlycoorstring = friendlycoor:ToStringMGRS(Settings)
 
     local enemycoor = NMEGRP:GetCoordinate()
     local enemycoorstring = enemycoor:ToStringMGRS(Settings)
-	
-	shouldernum = math.random(1, 2)
-      if shouldernum == 1 then
-        shoulderDir = "LEFT"
-        shoulderSound = "leftshoulder.ogg"
-      else
-        shoulderDir = "RIGHT"
-        shoulderSound = "rightshoulder.ogg"
-      end
-	
-	if selectedGroup:IsAirPlane() then 
-		MESSAGE:New("1. N/A.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("2. N/A.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("3. N/A.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("4. " .. math.floor(NMEGRP:GetAltitude() * 3.28084) .. " Feet ASL", self.TICMessageShowTime, "")
-            :ToGroup(selectedGroup)
-        MESSAGE:New("5. ENEMY MECHANISED GROUP.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("6. " .. enemycoorstring, self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("7. " .. self.distance_marking_text .. "", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("8. FROM THE " .. Direction .. " 300 to 500 METERS DANGER CLOSE!", self.TICMessageShowTime, "")
-            :ToGroup(selectedGroup)
-        MESSAGE:New(" MARKED BY " .. self.smokecolor .. " SMOKE!", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("9. EGRESS AT YOUR DISCRETION.", self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-	else
-		MESSAGE:New("1. TYPE 2 CONTROL, BOMB ON TARGET. MISSILES FOLLOWED BY ROCKETS & GUNS.", self.TICMessageShowTime,
-          ""):ToGroup(selectedGroup)
-        MESSAGE:New("2. MY POSITION " .. friendlycoorstring .. " MARKED BY " .. self.smokecolor .. " SMOKE!",
-          self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-        MESSAGE:New("3. TARGET LOCATION: " .. Direction .. " 300 to 500 METERS!", self.TICMessageShowTime, ""):ToGroup(
-          selectedGroup)
-        MESSAGE:New("4. ENEMY TROOPS AND VEHICLES IN THE OPEN, " .. self.distance_marking_text, self.TICMessageShowTime,
-          ""):ToGroup(selectedGroup)
-        MESSAGE:New("5. " .. shoulderDir .. " SHOULDER. PULL YOUR DISCRETION. DANGER CLOSE, FOXTROT WHISKEY!",
-          self.TICMessageShowTime, ""):ToGroup(selectedGroup)
-	end
-  
-  end
-  
-  function CAS:_TracerMark(selectedGroup)
-  
-   markgroup = self.spawnedFriendlyGroup[selectedGroup:GetName()]
-   markgroup:OptionROEHoldFire()
-   markgroup:OptionAlarmStateGreen()                           
-      --local deadsound = USERSOUND:New("weareCM2.ogg"):ToGroup(grp) 
-        MESSAGE:New("Roger that, marking enemy direction with 50 cal!"):ToGroup(selectedGroup)      
-       
-     --end
-     
-    markTask = markgroup:TaskFireAtPoint(self.FirePointVec2[selectedGroup:GetName()],1,25,nil,68)
-    local fireStop = markgroup:TaskFunction("MarkGroupHoldFire")
-    function MarkGroupHoldFire(grp) 
-      grp:OptionROEHoldFire()
-      env.info("TICDEBUG: HOLD FIRE!") 
-      MESSAGE:New("TRACERS OUT, HOLDING FIRE... "):ToGroup(selectedGroup)
-         
-    end
-          
-    markgroup:SetTask(markTask,1)
-    markgroup:SetTask(fireStop,15)
 
+    shouldernum = math.random(1, 2)
+    if shouldernum == 1 then
+      shoulderDir = "LEFT"
+      shoulderSound = "leftshoulder.ogg"
+    else
+      shoulderDir = "RIGHT"
+      shoulderSound = "rightshoulder.ogg"
+    end
+    local nineLineString = ""
+    if selectedGroup:IsAirPlane() then
+      nineLineString = "1. N/A.\n" ..
+      "2. N/A.\n" ..
+      "3. N/A.\n" ..
+      "4. " .. math.floor(NMEGRP:GetAltitude() * 3.28084) .. " Feet ASL\n" ..
+		  "5. ENEMY MECHANISED GROUP.\n" ..
+		  "6. " .. enemycoorstring .. "\n" ..
+		  "7. " .. self.distance_marking_text .. "\n" ..
+		  "8. FROM THE " .. Direction .. " 300 to 500 METERS DANGER CLOSE!\n" ..
+		  "MARKED BY " .. self.smokecolor .. " SMOKE!\n" ..
+		  "9. EGRESS AT YOUR DISCRETION."
+    else
+      nineLineString = "1. TYPE 2 CONTROL, BOMB ON TARGET. MISSILES FOLLOWED BY ROCKETS & GUNS.\n" ..
+    "2. MY POSITION " .. friendlycoorstring .. " MARKED BY " .. self.smokecolor .. " SMOKE!\n" ..
+    "3. TARGET LOCATION: " .. Direction .. " 300 to 500 METERS!\n" ..
+    "4. ENEMY TROOPS AND VEHICLES IN THE OPEN, \n" ..
+		"5. " .. shoulderDir .. " SHOULDER. PULL YOUR DISCRETION. DANGER CLOSE, FOXTROT WHISKEY!"
+    end
+    MESSAGE:New(nineLineString, self.TICMessageShowTime, ""):ToGroup(selectedGroup)
   end
-  
+
+  function CAS:_TracerMark(selectedGroup)
+    markgroup = self.SpawnedFriendlyGroup[selectedGroup:GetName()]
+    markgroup:OptionROEHoldFire()
+    markgroup:OptionAlarmStateGreen()
+    --local deadsound = USERSOUND:New("weareCM2.ogg"):ToGroup(grp)
+    MESSAGE:New("Roger that, marking enemy direction with 50 cal!"):ToGroup(selectedGroup)
+
+    --end
+
+    markTask = markgroup:TaskFireAtPoint(self.FirePointVec2[selectedGroup:GetName()], 1, 25, nil, 68)
+    local fireStop = markgroup:TaskFunction("MarkGroupHoldFire")
+    function MarkGroupHoldFire(grp)
+      grp:OptionROEHoldFire()
+      env.info("TICDEBUG: HOLD FIRE!")
+      MESSAGE:New("TRACERS OUT, HOLDING FIRE... "):ToGroup(selectedGroup)
+    end
+
+    markgroup:SetTask(markTask, 1)
+    markgroup:SetTask(fireStop, 15)
+  end
+
   function CAS:LaseTarget(selectedGroup, lcode)
-   local badGroup = self.spawnedEnemyGroup[selectedGroup:GetName()]
-   local badUnit = badGroup:GetUnit(1)
-   markgroup = self.spawnedFriendlyGroup[selectedGroup:GetName()]
-   markgroup:OptionROEHoldFire()
-   markgroup:OptionAlarmStateGreen()
-   markgroupcoord = markgroup:GetCoordinate()
-   
-   if markgroupcoord:IsLOS(self.FirePointCoord[selectedGroup:GetName()]) ~= true and badUnit:IsAlive() then
+    local badGroup = self.SpawnedEnemyGroup[selectedGroup:GetName()]
+    local badUnit = badGroup:GetUnit(1)
+    markgroup = self.SpawnedFriendlyGroup[selectedGroup:GetName()]
+    markgroup:OptionROEHoldFire()
+    markgroup:OptionAlarmStateGreen()
+    markgroupcoord = markgroup:GetCoordinate()
+
+    if markgroupcoord:IsLOS(self.FirePointCoord[selectedGroup:GetName()]) and badUnit:IsAlive() then
       --GROUP:isal
       --DEBUG _G[FirePointCoord]:MarkToAll("firepointcoord")
       --MESSAGE:New("Lase is possible, standby!"):ToAll()
       laserspot = SPOT:New(markgroup:GetUnit(1))
-      laserspot:LaseOn(badUnit,lcode,self.lasertime)
+      laserspot:LaseOn(badUnit, lcode, self.lasertime)
       --laserspot:LaseOnCoordinate(_G[FirePointCoord], 1688, 120)
       if laserspot:IsLasing() then
-      MESSAGE:New("Laser on, code " .. lcode ..  ", holding for " .. self.lasertime .. "  seconds!"):ToGroup(selectedGroup,TICMessageShowTime)
-	  end
-   else
+        MESSAGE:New("Laser on, code " .. lcode .. ", holding for " .. self.lasertime .. "  seconds!"):ToGroup(
+          selectedGroup, TICMessageShowTime)
+      end
+    else
       MESSAGE:New("Negative Lase, unable.."):ToGroup(selectedGroup)
-    return
-   end
-   
+      return
+    end
   end
 
   function CAS:onafterStart(From, Event, To)
@@ -773,8 +872,7 @@ do
     self:I(self.lid .. "Started (" .. self.version .. ")")
     local prefix = self.prefixes
     --MESSAGE:New("Test CAS onafterstart create group" ,120,""):ToAll()
-    self.CasGroups = SET_GROUP:New():FilterCoalitions(self.coalitiontxt):FilterPrefixes(prefix):FilterStart()
-
+    
 
     -- Events
     --MESSAGE:New("Test CAS onafterstart handle events" ,120,""):ToAll()
@@ -819,6 +917,49 @@ do
     self:T({ From, Event, To })
     return self
   end
+
+  function CAS:OnEventPlayerEnterAircraft(Event)
+    self:T(Event)
+    local groupName = Event.IniGroupName
+    self.MenusDone[groupName] = false
+    self:_RefreshF10Menus()
+    return self
+  end
+end
+
+function displayVariables(arr, indent)
+  if arr == nil then
+    env.info("Variable is nil.")
+  else
+    indent = indent or 0
+    local spacing = string.rep("  ", indent)
+
+    for key, value in pairs(arr) do
+      value = value or "nil"
+        if type(value) == "table" then
+            env.info(spacing .. "Variable name: " .. key)
+            displayVariables(value, indent + 1)
+        else
+          env.info(spacing .. "Variable name: " .. key .. ", Value: " .. tostring(value))
+      end
+    end
+  end
+end
+
+function CreateDistinctList(array)
+  local distinctList = {}
+  local seenIDs = {}
+
+  for _, item in pairs(array) do
+      local id = item.missionID
+
+      if not seenIDs[id] then
+          table.insert(distinctList, item)
+          seenIDs[id] = true
+      end
+  end
+
+  return distinctList
 end
 
 function dist(point1, point2)
