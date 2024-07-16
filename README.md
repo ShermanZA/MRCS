@@ -18,7 +18,7 @@ Lastly run another file containing the CAS:NEW() function, containing the follow
 * BadGuyGroupTemplates:Templates used for hostile ground forces during a CAS mission
 
 Ensure at least one CASZONE exists.
-Ensure each CASZone is populated with subzones with the following nameing convention: 
+Ensure each CASZone is populated with subzones with the following naming convention: 
 "{CASZONE name}-SubZone-{number}".
 
 Ensure at least one FriendlyGroup exists with the "LateActivation" set to true.
