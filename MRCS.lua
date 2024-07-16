@@ -146,9 +146,9 @@ do
     self.baddiesSet:ForEachGroup(function(grp)
       table.insert(self.baddiesTable, grp:GetName())
     end)
-    self.Friendly = SPAWN:NewWithAlias(self.FriendlyTemplates[1], "FRD-GRP"):InitHeading(0, 1):InitRandomizeTemplate(
+    self.Friendly = SPAWN:NewWithAlias(self.FriendlyTemplates[1], "FRD-GRP"):InitRandomizeTemplate(
       self.friendliesTable)
-    self.Badgroup = SPAWN:NewWithAlias(self.BadGuyTemplates[1], 'NME-GRP'):InitHeading(0, 1):InitRandomizeTemplate(self
+    self.Badgroup = SPAWN:NewWithAlias(self.BadGuyTemplates[1], 'NME-GRP'):InitRandomizeTemplate(self
       .baddiesTable)
 
     self.tracermark_groupname = "none"
@@ -226,6 +226,7 @@ do
     self:F(zoneName, selectedGroup)
 
     local shoulderDir = ""
+    Direction_num = math.random(1, 8)
     local subZones = {}
     local zone = ZONE:FindByName(zoneName)
     local subZoneFilter = zoneName .. "-"
@@ -238,15 +239,26 @@ do
         end
       end
     end)
+    local hdg = 45 * Direction_num
+    
     self.Friendly:InitRandomizeZones(subZones)
+    local templateunit1 = self.Friendly.SpawnTemplate.units[1]
+    local frdcrd = COORDINATE:NewFromVec3({x = templateunit1.x, y = self.Friendly.SpawnTemplate.route.points[1].alt, z = templateunit1.y})
+    --change _generateDirectionAndOffset to take Vec3
+    
+    
+    env.info("Heading: " .. hdg)
+    --create Generate Bearing function to take either 1 or 2 Coords
+    local frdbrng = _generateBearing(frdcrd)
+    self.Friendly:InitGroupHeading(frdbrng):InitHeading(frdbrng)
     local badGroup = self.Badgroup
     -- seperate the enemy spawn into a seperate function to be returned
     self.Friendly:OnSpawnGroup(function(spawngroup)
-      unit1 = spawngroup:GetUnit(1)
+    local  unit1 = spawngroup:GetUnit(1)
       local immcmd = { id = 'SetImmortal', params = { value = true } }
       spawngroup:_GetController():setCommand(immcmd)
       -- enemyGroup = spawnEnemyGroupNearFriendlies(unit1,enemySpawnDistance,detectedZoneName)
-      Direction = "none"
+      Direction = "none"      
       local enemySpawnPoint = self:_generateDirectionAndOffset(unit1, self.offsetX, self.offsetZ)
       
       self.Badgroup:OnSpawnGroup(
@@ -255,6 +267,9 @@ do
           return self
         end, self)
 
+      local nmebrg =  _generateBearing(enemySpawnPoint, frdcrd)
+      self.Badgroup:InitGroupHeading(nmebrg):InitHeading(nmebrg)
+      
       badGroup = self.Badgroup:SpawnFromCoordinate(enemySpawnPoint)
       local casMis = self:_CASMission(selectedGroup, spawngroup.GroupName, badGroup:GetName())
       self.CASMissions[selectedGroup:GetName()] = casMis--table.insert(self.CASMissions,casMis)
@@ -317,6 +332,8 @@ do
       self:_RefreshF10Menus()
       return self
     end)
+    --local hdg = 45 * Direction_num
+    --self.Friendly:InitGroupHeading(hdg):InitHeading(hdg)
     self.SpawnedFriendly = self.Friendly:Spawn()
     self.SpawnedFriendlyGroup[selectedGroup:GetName()] = self.SpawnedFriendly
     return self
@@ -339,17 +356,17 @@ do
 
     sgrp:OptionROEOpenFire()
     sgrp:SetTask(mortalTask, self.friendly_fire_time)
-    env.info("group mortal")
+    --env.info("group mortal")
 
     CharlieMike = false
     samesameIniGroup = nil
     TICBaddieUnit1 = sgrp:GetUnit(1)
     _G[TICBaddieUnit1] = TICBaddieUnit1
-    env.info("group retreat")
+    --env.info("group retreat")
     TICBaddieGroupName = sgrp:GetName()
     TICBaddieUnit1Heading = sgrp:GetUnit(1):GetHeading()
-    retreat_number = math.random(1, 100)
-    env.info("TICDEBUG: retreat_number: " .. retreat_number)
+    --retreat_number = math.random(1, 100)
+    --env.info("TICDEBUG: retreat_number: " .. retreat_number)
     local TICBaddieZone = ZONE_GROUP:New(sgrp:GetName(), sgrp, 250)
     sgrp:HandleEvent(EVENTS.Hit)
     function sgrp:OnEventHit(EventData)
@@ -669,8 +686,7 @@ do
     return count
   end
 
-  function CAS:_generateDirectionAndOffset(unit1, offsetX, offsetZ)
-    Direction_num = math.random(1, 8)
+  function CAS:_generateDirectionAndOffset(unit1, offsetX, offsetZ)    
     offset1 = math.random(offsetX, offsetZ)
     offset2 = math.random(offsetX, offsetZ)
 
@@ -925,6 +941,18 @@ do
     self:_RefreshF10Menus()
     return self
   end
+end
+
+function _generateBearing(point1, point2)
+  local hdg = 0
+  if point2 == nil then
+    hdg = 45 * Direction_num
+  elseif point2 ~= nil then
+    local bearing = point2:GetDirectionVec3(point1:GetVec3())
+    hdg = point2:GetAngleDegrees(bearing)
+  end
+  env.info("Angle: " .. hdg)
+  return hdg
 end
 
 function displayVariables(arr, indent)
