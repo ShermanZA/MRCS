@@ -1,6 +1,6 @@
 # MRCS
 
-**M**OOSE-based **R**andomised **C**AS **S**cript, MRCS is a modified version of Fargo007 's TROOPSINCONTACT script modified to work
+**M**OOSE-based **R**andomised **C**AS **S**cript, MRCS is a modified version of Fargo007 's [TROOPSINCONTACTV10](https://github.com/Fargo007/TROOPS-IN-CONTACT/tree/main) script modified to work
 through MOOSE.
 
 This is script is based on the code of the TROOPSINCONTACTV10 script by Fargo007.
