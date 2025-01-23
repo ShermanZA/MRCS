@@ -78,19 +78,19 @@ do
     },
     mgrsAirframes = {
       "AH-64D_BLK_II",
-      "F-16 CM bl.50",
-      "AV-8B N/A",
+      "F-16C_50",
+      "AV8BNA",
       "A-10C",
       "A-10C_2",
-      "F/A-18C Lot 20",
-      "OH-58D(R)",      
+      "FA-18C_hornet",
+      "OH58D",
     },
     LLDDMAirframes = {
       "F-15ESE",
     }
   }
 
-  CAS.version = "1.4.2"
+  CAS.version = "1.4.3"
 
 
 
@@ -851,7 +851,7 @@ do
     local isLLDDM = false
     for _, airFrameType in pairs(self.mgrsAirframes) do
       if selectedGroup:GetTypeName() == airFrameType then
-        isMGRS = true      
+        isMGRS = true
       end
     end
     if isMGRS ~= true then
