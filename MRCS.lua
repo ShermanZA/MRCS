@@ -75,11 +75,22 @@ do
       JoinedGroups = {},
       SpawnedFriendlyGroup = "",
       SpawnedEnemyGroup = ""
+    },
+    mgrsAirframes = {
+      "AH-64D_BLK_II",
+      "F-16 CM bl.50",
+      "AV-8B N/A",
+      "A-10C",
+      "A-10C_2",
+      "F/A-18C Lot 20",
+      "OH-58D(R)",      
+    },
+    LLDDMAirframes = {
+      "F-15ESE",
     }
-
   }
 
-  CAS.version = "1.3.2"
+  CAS.version = "1.4.2"
 
 
 
@@ -261,16 +272,16 @@ do
       Direction = "none"      
       local enemySpawnPoint = self:_generateDirectionAndOffset(unit1, self.offsetX, self.offsetZ)
       
-      self.Badgroup:OnSpawnGroup(
+      badGroup:OnSpawnGroup(
         function(sgrp)
           self:_SetSpawnBehaviour(sgrp, zoneName, selectedGroup)
           return self
         end, self)
 
       local nmebrg =  _generateBearing(enemySpawnPoint, frdcrd)
-      self.Badgroup:InitGroupHeading(nmebrg):InitHeading(nmebrg)
+      badGroup:InitGroupHeading(nmebrg):InitHeading(nmebrg)
       
-      badGroup = self.Badgroup:SpawnFromCoordinate(enemySpawnPoint)
+      badGroup = badGroup:SpawnFromCoordinate(enemySpawnPoint)
       local casMis = self:_CASMission(selectedGroup, spawngroup.GroupName, badGroup:GetName())
       self.CASMissions[selectedGroup:GetName()] = casMis--table.insert(self.CASMissions,casMis)
       self.SpawnedEnemy = badGroup
@@ -344,6 +355,7 @@ do
     CasSelf = self
     local zone = ZONE:FindByName(zoneName)
     local casgroups = self.CasGroups
+    local selectedName = selectedGroup:GetName()
 
     local immcmd = { id = 'SetImmortal', params = { value = true } }
     sgrp:_GetController():setCommand(immcmd)
@@ -368,7 +380,7 @@ do
     --retreat_number = math.random(1, 100)
     --env.info("TICDEBUG: retreat_number: " .. retreat_number)
     local TICBaddieZone = ZONE_GROUP:New(sgrp:GetName(), sgrp, 250)
-    sgrp:HandleEvent(EVENTS.Hit)
+    sgrp:HandleEvent(EVENTS.Hit) --This requires the user who spawned in the CAS units to remain alive
     function sgrp:OnEventHit(EventData)
       local shooterCoalition = EventData.IniCoalition
       if shooterCoalition == 2 then
@@ -390,12 +402,30 @@ do
               --hitsound = USERSOUND:New("goodeffectontarget2.ogg"):ToGroup(EventData.IniGroup,13)
               --end
               --casgroups:ForEachGroupPartlyInZone(zone,function (grp)
-              casgroups:ForEachGroup(function(grp)
-                if grp:IsPartlyOrCompletelyInZone(zone) == true then
-                  MESSAGE:New("... From JTAC: good effect on target!", CasSelf.TICMessageShowTime, ""):ToGroup(
-                    grp, 13)
+              local IniOnStation = false
+              for i,groupName in pairs(CasSelf.CASMissions[selectedName].JoinedGroups) do --pseudocode
+                local grp = GROUP:FindByName(groupName)
+                if groupName == EventData.IniGroupName then
+                  IniOnStation = true
+                  break
                 end
-              end)
+              end
+
+              if IniOnStation then
+                for i,groupName in pairs(CasSelf.CASMissions[selectedName].JoinedGroups) do --pseudocode
+                  local grp = GROUP:FindByName(groupName)
+                  if grp:IsAlive() then
+                    MESSAGE:New("... From JTAC: good effect on target!", CasSelf.TICMessageShowTime, ""):ToGroup(grp, 13)
+                  end
+                  
+                end
+              end
+              --casgroups:ForEachGroup(function(grp)
+                --if grp:IsPartlyOrCompletelyInZone(zone) == true then
+                  --MESSAGE:New("... From JTAC: good effect on target!", CasSelf.TICMessageShowTime, ""):ToGroup(
+                    --grp, 13)
+                --end
+              --end)
 
               samesameIniGroup = EventData.IniGroup
               --env.info("TICDEBUG: good effect sound played")
@@ -408,18 +438,26 @@ do
               --  TICgroupset:ForEachGroupCompletelyInZone(TICZoneObject,function (grp)
               --  local deadsound = USERSOUND:New("weareCM2.ogg"):ToGroup(grp) end)
               --end
-              casgroups:ForEachGroup(function(grp)
-                if grp:IsAlive() and grp:IsPartlyOrCompletelyInZone(zone) == true then
-                  MESSAGE:New(
-                    "Have secondaries in the target area. All enemies appear to be down. Thanks for the support, we are CM!",
-                    15, ""):ToGroup(grp)
+
+              for i,groupName in pairs(CasSelf.CASMissions[selectedName].JoinedGroups) do --pseudocode
+                local grp = GROUP:FindByName(groupName)
+                if grp:IsAlive() then
+                  MESSAGE:New("Have secondaries in the target area. All enemies appear to be down. Thanks for the support, we are CM!"
+                  , 15, ""):ToGroup(grp)
                 end
-              end)
-              CharlieMike = true
-              if CasSelf.SpawnedFriendlyGroup[selectedGroup:GetName()]:IsAlive() then
-                CasSelf.SpawnedFriendlyGroup[selectedGroup:GetName()]:Destroy(nil, 30)
               end
-              for key, grp in pairs(CasSelf.CASMissions[selectedGroup:GetName()].JoinedGroups) do
+              --casgroups:ForEachGroup(function(grp)
+                --if grp:IsAlive() and grp:IsPartlyOrCompletelyInZone(zone) == true then
+                  --MESSAGE:New(
+                    --"Have secondaries in the target area. All enemies appear to be down. Thanks for the support, we are CM!",
+                    --15, ""):ToGroup(grp)
+                --end
+              --end)
+              CharlieMike = true
+              if CasSelf.SpawnedFriendlyGroup[selectedName]:IsAlive() then
+                CasSelf.SpawnedFriendlyGroup[selectedName]:Destroy(nil, 30)
+              end
+              for key, grp in pairs(CasSelf.CASMissions[selectedName].JoinedGroups) do
                 CasSelf.SpawnedFriendlyGroup[grp] = nil
                 CasSelf.SpawnedEnemyGroup[grp] = nil
                 CasSelf.IsOnStation[grp] = false
@@ -428,7 +466,7 @@ do
                   CasSelf.MenusDone[grp] = false
                 --end
               end
-              CasSelf:_ClearGroupsFromMission(CasSelf.CASMissions[selectedGroup:GetName()])
+              CasSelf:_ClearGroupsFromMission(CasSelf.CASMissions[selectedName])
               CasSelf:_RefreshF10Menus()
             end
           end
@@ -481,7 +519,7 @@ do
       return self
     else
       -- Spawn the friendly group at the specified sub-zone
-      local friendlyGroup = self:_spawnGroupAtSubZone(detectedZoneName, detectedGroup)
+      self:_spawnGroupAtSubZone(detectedZoneName, detectedGroup)
     end
     --break
     --end
@@ -598,13 +636,22 @@ do
   function CAS:_RefreshF10Menus()
     self:T(self.lid .. " _RefreshF10Menus")
     self.CasGroups = SET_GROUP:New():FilterCoalitions(self.coalitiontxt):FilterPrefixes(self.prefixes):FilterStart()
+    
+    local GroupNames = {}
+    self.CasGroups:ForEachGroup(
+      function (grp)
+        table.insert(GroupNames, grp:GetName())
+      end
+    )
     local PlayerSet = _DATABASE.CLIENTS --self.CasGroups              -- Core.Set#SET_GROUP
     local PlayerTable = self.CasGroups:GetSetObjects() -- #table of #GROUP objects
+    --displayVariables(PlayerTable)
+    
 
     -- build unit menus
     local menucount = 0
     local menus = {}
-    for _, _groupName in pairs(self.prefixes) do
+    for _, _groupName in pairs(GroupNames) do
       if not self.MenusDone[_groupName] then
         local _group = GROUP:FindByName(_groupName) -- Wrapper.Unit#UNIT
           if _group and _group:IsAlive() then
@@ -800,11 +847,34 @@ do
 
   function CAS:_RepeatBrief(selectedGroup)
     local NMEGRP = self.SpawnedEnemyGroup[selectedGroup:GetName()]
+    local isMGRS = false
+    local isLLDDM = false
+    for _, airFrameType in pairs(self.mgrsAirframes) do
+      if selectedGroup:GetTypeName() == airFrameType then
+        isMGRS = true      
+      end
+    end
+    if isMGRS ~= true then
+      for _, airFrameType in pairs(self.LLDDMAirframes) do
+        if selectedGroup:GetTypeName() == airFrameType then
+          isLLDDM = true
+        end
+      end
+    end
+      
     local friendlycoor = self.SpawnedFriendlyGroup[selectedGroup:GetName()]:GetCoordinate()
-    local friendlycoorstring = friendlycoor:ToStringMGRS(Settings)
+    local friendlycoorstring = friendlycoor:ToStringLLDMS(Settings)
 
     local enemycoor = NMEGRP:GetCoordinate()
-    local enemycoorstring = enemycoor:ToStringMGRS(Settings)
+    local enemycoorstring = enemycoor:ToStringLLDMS(Settings)
+
+    if(isMGRS) then
+      friendlycoorstring = friendlycoor:ToStringMGRS(Settings)
+      enemycoorstring = enemycoor:ToStringMGRS(Settings)
+    elseif (isLLDDM) then
+      friendlycoorstring = friendlycoor:ToStringLLDDM(Settings)
+      enemycoorstring = enemycoor:ToStringLLDDM(Settings)
+    end
 
     shouldernum = math.random(1, 2)
     if shouldernum == 1 then
